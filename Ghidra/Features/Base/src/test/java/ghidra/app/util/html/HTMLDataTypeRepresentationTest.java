@@ -997,7 +997,7 @@ public class HTMLDataTypeRepresentationTest extends AbstractGenericTest {
 	}
 
 	private EnumDataType createEnumDataType() {
-		EnumDataType enumDataType = new EnumDataType("myEnum", 10);
+		EnumDataType enumDataType = new EnumDataType("myEnum", 1);
 
 		enumDataType.add("COMDLG32", 0x1);
 		enumDataType.add("SHELL32", 0x3);
@@ -1407,11 +1407,11 @@ public class HTMLDataTypeRepresentationTest extends AbstractGenericTest {
 		String name = componentAtIndex.getFieldName();
 
 		if (optionalName != null) {
-			destinationComposite.insert(insertIndex, componentCopy, componentCopy.getLength(),
+			destinationComposite.insert(insertIndex, componentCopy, componentAtIndex.getLength(),
 				optionalName, null);
 		}
 		else {
-			destinationComposite.insert(insertIndex, componentCopy, componentCopy.getLength(),
+			destinationComposite.insert(insertIndex, componentCopy, componentAtIndex.getLength(),
 				name + " Copy", null);
 		}
 	}

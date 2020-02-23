@@ -22,8 +22,9 @@ import javax.swing.*;
 import javax.swing.tree.TreePath;
 
 import docking.DockingUtils;
-import docking.util.KeyBindingUtils;
-import docking.widgets.tree.*;
+import docking.actions.KeyBindingUtils;
+import docking.widgets.tree.GTree;
+import docking.widgets.tree.GTreeNode;
 import docking.widgets.tree.support.GTreeRenderer;
 import ghidra.framework.main.FrontEndTool;
 
@@ -35,7 +36,7 @@ public class DataTree extends GTree {
 	private boolean isActive;
 	private DataTreeDragNDropHandler dragNDropHandler;
 
-	DataTree(FrontEndTool tool, GTreeRootNode root) {
+	DataTree(FrontEndTool tool, GTreeNode root) {
 
 		super(root);
 		setName("Data Tree");

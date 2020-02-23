@@ -24,7 +24,7 @@ import java.util.Map.Entry;
 import javax.swing.*;
 import javax.swing.border.*;
 
-import docking.util.KeyBindingUtils;
+import docking.actions.KeyBindingUtils;
 import docking.widgets.label.GDLabel;
 import docking.widgets.label.GIconLabel;
 import generic.util.WindowUtilities;
@@ -308,6 +308,10 @@ public class MultiTabPanel extends JPanel {
 				// close the list window if the user has clicked outside of the window
 				if (!(e.getSource() instanceof JList)) {
 					hideListWindow();
+				}
+
+				if (e.isPopupTrigger()) {
+					return; // allow popup triggers to show actions without changing tabs
 				}
 
 				// Tracker SCR 3605 - hitting 'X' to close tab doesn't work if tab is not selected

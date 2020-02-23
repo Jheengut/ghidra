@@ -37,7 +37,8 @@ import docking.widgets.filechooser.GhidraFileChooserMode;
 import docking.widgets.pathmanager.PathManager;
 import docking.widgets.pathmanager.PathManagerListener;
 import docking.widgets.table.*;
-import docking.widgets.tree.*;
+import docking.widgets.tree.GTree;
+import docking.widgets.tree.GTreeNode;
 import docking.widgets.tree.support.BreadthFirstIterator;
 import generic.jar.ResourceFile;
 import generic.util.Path;
@@ -103,6 +104,7 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 
 		setHelpLocation(new HelpLocation(plugin.getName(), plugin.getName()));
 		setIcon(ResourceManager.loadImage("images/play.png"));
+		addToToolbar();
 		setWindowGroup(WINDOW_GROUP);
 
 		build();
@@ -164,6 +166,10 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 			return;
 		}
 		action.setKeyBindingData(new KeyBindingData(dialog.getKeyStroke()));
+		scriptTable.repaint();
+	}
+
+	void keyBindingUpdated() {
 		scriptTable.repaint();
 	}
 
@@ -614,7 +620,7 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 		}
 
 		List<GTreeNode> toDelete = new LinkedList<>();
-		Iterator<GTreeNode> nodes = new BreadthFirstIterator(scriptCategoryTree, scriptRoot);
+		Iterator<GTreeNode> nodes = new BreadthFirstIterator(scriptRoot);
 		for (GTreeNode node : CollectionUtils.asIterable(nodes)) {
 			String[] path = getCategoryPath(node);
 			List<String> category = Arrays.asList(path);
@@ -775,8 +781,9 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 			}
 		});
 
-		scriptCategoryTree.getSelectionModel().setSelectionMode(
-			TreeSelectionModel.SINGLE_TREE_SELECTION);
+		scriptCategoryTree.getSelectionModel()
+				.setSelectionMode(
+					TreeSelectionModel.SINGLE_TREE_SELECTION);
 
 		tableModel = new GhidraScriptTableModel(this);
 
@@ -1060,6 +1067,12 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 	}
 
 	@Override
+	public void componentActivated() {
+		// put the user focus in the filter field, as often the user wishes to search for a script
+		tableFilterPanel.requestFocus();
+	}
+
+	@Override
 	public ActionContext getActionContext(MouseEvent event) {
 		Object source = scriptTable;
 		if (event != null) {
@@ -1124,7 +1137,7 @@ public class GhidraScriptComponentProvider extends ComponentProviderAdapter {
 			// with a filter, only things in the available children match the root node (this is
 			// so filtering in the tree will show all matching results when the
 			// root is selected, instead of all results).
-			GTreeRootNode rootNode = scriptCategoryTree.getRootNode();
+			GTreeNode rootNode = scriptCategoryTree.getViewRoot();
 			List<GTreeNode> children = rootNode.getChildren();
 			for (GTreeNode node : children) {
 				String[] path = getCategoryPath(node);

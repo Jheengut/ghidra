@@ -15,8 +15,7 @@
  */
 package docking.test;
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import java.awt.*;
 import java.awt.datatransfer.*;
@@ -41,6 +40,7 @@ import org.junit.*;
 import docking.*;
 import docking.action.DockingActionIf;
 import docking.action.ToggleDockingActionIf;
+import docking.actions.DockingToolActions;
 import docking.dnd.GClipboard;
 import docking.framework.DockingApplicationConfiguration;
 import docking.menu.DockingToolbarButton;
@@ -258,8 +258,8 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	}
 
 	/**
-	 * Waits for a window with the given name.  If <tt>parentWindow</tt> is not null, then it
-	 * will be used to find subordinate windows.  If <tt>parentWindow</tt> is null, then all
+	 * Waits for a window with the given name.  If <code>parentWindow</code> is not null, then it
+	 * will be used to find subordinate windows.  If <code>parentWindow</code> is null, then all
 	 * existing frames will be searched.
 	 *
 	 * @param parentWindow The parent of the window for which to search, or null to search all
@@ -364,7 +364,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * Check for and display message component text associated with
 	 * ErrLogDialog and OptionDialog windows.
 	 * @param w any window
-	 * @return the message string if one can be found; <tt>null</tt> otherwise
+	 * @return the message string if one can be found; <code>null</code> otherwise
 	 */
 	public static String checkMessageDisplay(Window w) {
 		Component c = findComponentByName(w, "MESSAGE-COMPONENT");
@@ -483,6 +483,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	/**
 	 * A convenience method to close all of the windows and frames that the current Java
 	 * windowing environment knows about
+	 * 
 	 * @deprecated instead call the new {@link #closeAllWindows()}
 	 */
 	@Deprecated
@@ -633,7 +634,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * Waits for the first window of the given class.
 	 *
 	 * @param ghidraClass The class of the dialog the user desires
-	 * @return The first occurrence of a dialog that extends the given <tt>ghirdraClass</tt>
+	 * @return The first occurrence of a dialog that extends the given <code>ghirdraClass</code>
 	 * @see #waitForDialogComponent(Window, Class, int)
 	 */
 	public static <T extends DialogComponentProvider> T waitForDialogComponent(
@@ -643,13 +644,13 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 
 	/**
 	 * Waits for the first window of the given class.  This method assumes that the desired dialog
-	 * is parented by <tt>parentWindow</tt>.
+	 * is parented by <code>parentWindow</code>.
 	 *
 	 * @param parentWindow The parent of the desired dialog; may be null
 	 * @param clazz The class of the dialog the user desires
 	 * @param timeoutMS The max amount of time in milliseconds to wait for the requested dialog
 	 *        to appear.
-	 * @return The first occurrence of a dialog that extends the given <tt>ghirdraClass</tt>
+	 * @return The first occurrence of a dialog that extends the given <code>ghirdraClass</code>
 	 * @deprecated Instead call one of the methods that does not take a timeout
 	 *             (we are standardizing timeouts).  The timeouts passed to this method will
 	 *             be ignored in favor of the standard value.
@@ -747,7 +748,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 
 	/**
 	 * Searches for the first occurrence of a {@link ComponentProvider} that is an instance of
-	 * the given <tt>providerClass</tt>.
+	 * the given <code>providerClass</code>.
 	 *
 	 * @param clazz The class of the ComponentProvider to locate
 	 * @return The component provider, or null if one cannot be found
@@ -777,10 +778,10 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 
 	/**
 	 * Searches for the first occurrence of a {@link ComponentProvider} that is an instance of
-	 * the given <tt>providerClass</tt>.  This method will repeat the search every
+	 * the given <code>providerClass</code>.  This method will repeat the search every
 	 * {@link #DEFAULT_WAIT_DELAY} milliseconds
 	 * until the provider is found, or the maximum number of searches has been reached, where
-	 * <tt>maximum number of searches = MaxTimeMS / {@link #DEFAULT_WAIT_DELAY} </tt>
+	 * <code>maximum number of searches = MaxTimeMS / {@link #DEFAULT_WAIT_DELAY} </code>
 	 *
 	 * @param clazz The class of the ComponentProvider to locate
 	 * @return The component provider, or null if one cannot be found
@@ -866,9 +867,9 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * <p>
 	 * Note: this method assumes the given node is not a RootNode, but a child thereof
 	 *
-	 * @param node The <tt>Node</tt> instance that contains the desired <tt>ComponentProvider</tt>
+	 * @param node The <code>Node</code> instance that contains the desired <code>ComponentProvider</code>
 	 *        or other nodes.
-	 * @param providerClass The <tt>ComponentProvider</tt> class for which to search.
+	 * @param providerClass The <code>ComponentProvider</code> class for which to search.
 	 */
 	private static ComponentProvider getComponentProviderFromNode(Object node,
 			Class<? extends ComponentProvider> providerClass) {
@@ -905,10 +906,10 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 
 	/**
 	 * Searches for the first occurrence of a {@link ComponentProvider} that is an instance of
-	 * the given <tt>providerClass</tt>.  This method will repeat the search every
+	 * the given <code>providerClass</code>.  This method will repeat the search every
 	 * {@link #DEFAULT_WAIT_DELAY} milliseconds
 	 * until the provider is found, or the maximum number of searches has been reached, where
-	 * <tt>maximum number of searches = MaxTimeMS / {@link #DEFAULT_WAIT_DELAY} </tt>
+	 * <code>maximum number of searches = MaxTimeMS / {@link #DEFAULT_WAIT_DELAY} </code>
 	 *
 	 * @param parentWindow The window that will become the parent window of the provider (this is
 	 *        typically the tool's frame).
@@ -1011,7 +1012,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 
 	/**
 	 * Finds the toggle button with the given name inside of the given container and then
-	 * ensures that the selected state of the button matches <tt>selected</tt>.
+	 * ensures that the selected state of the button matches <code>selected</code>.
 	 * <p>
 	 * Note: this works for any instanceof {@link JToggleButton}, such as:
 	 * <ul>
@@ -1048,7 +1049,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	}
 
 	/**
-	 * Ensures that the selected state of the button matches <tt>selected</tt>.
+	 * Ensures that the selected state of the button matches <code>selected</code>.
 	 * <p>
 	 * Note: this works for most toggle button implementations which are derived from
 	 * AbstractButton and relay on {@link AbstractButton#isSelected()} and
@@ -1097,23 +1098,52 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * @param name the name to match
 	 * @return the matching actions; empty list if no matches
 	 */
-	public static Set<DockingActionIf> getActions(DockingTool tool, String name) {
+	public static Set<DockingActionIf> getActionsByName(Tool tool, String name) {
 
-		Set<DockingActionIf> actions = new HashSet<>();
+		Set<DockingActionIf> result = new HashSet<>();
 
-		List<DockingActionIf> toolActions = tool.getAllActions();
+		Set<DockingActionIf> toolActions = tool.getAllActions();
 		for (DockingActionIf action : toolActions) {
 			if (action.getName().equals(name)) {
-				actions.add(action);
+				result.add(action);
 			}
 		}
-		return actions;
+		return result;
+	}
+
+	/**
+	 * A helper method to find all actions with the given owner's name (this will not include
+	 * reserved system actions)
+	 *
+	 * @param tool the tool containing all system actions
+	 * @param name the owner's name to match
+	 * @return the matching actions; empty list if no matches
+	 */
+	public static Set<DockingActionIf> getActionsByOwner(Tool tool, String name) {
+		return tool.getDockingActionsByOwnerName(name);
+	}
+
+	/**
+	 * A helper method to find all actions by name, with the given owner's name (this will not 
+	 * include reserved system actions)
+	 *
+	 * @param tool the tool containing all system actions
+	 * @param owner the owner's name
+	 * @param name the owner's name to match
+	 * @return the matching actions; empty list if no matches
+	 */
+	public static Set<DockingActionIf> getActionsByOwnerAndName(Tool tool, String owner,
+			String name) {
+		Set<DockingActionIf> ownerActions = tool.getDockingActionsByOwnerName(owner);
+		return ownerActions.stream()
+				.filter(action -> action.getName().equals(name))
+				.collect(Collectors.toSet());
 	}
 
 	/**
 	 * Finds the singular tool action by the given name.  If more than one action exists with
 	 * that name, then an exception is thrown.  If you want more than one matching action,
-	 * the call {@link #getActions(DockingTool, String)} instead.
+	 * the call {@link #getActionsByName(Tool, String)} instead.
 	 *
 	 * <P>Note: more specific test case subclasses provide other methods for finding actions
 	 * when you have an owner name (which is usually the plugin name).
@@ -1122,9 +1152,9 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * @param name the name to match
 	 * @return the matching action; null if no matching action can be found
 	 */
-	public static DockingActionIf getAction(DockingTool tool, String name) {
+	public static DockingActionIf getAction(Tool tool, String name) {
 
-		Set<DockingActionIf> actions = getActions(tool, name);
+		Set<DockingActionIf> actions = getActionsByName(tool, name);
 		if (actions.isEmpty()) {
 			return null;
 		}
@@ -1134,6 +1164,49 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 		}
 
 		return CollectionUtils.any(actions);
+	}
+
+	/**
+	 * Finds the action by the given owner name and action name.  
+	 * If you do not know the owner name, then use  
+	 * the call {@link #getActionsByName(Tool, String)} instead  (this will not include
+	 * reserved system actions).
+	 * 
+	 * <P>Note: more specific test case subclasses provide other methods for finding actions 
+	 * when you have an owner name (which is usually the plugin name).
+	 * 
+	 * @param tool the tool containing all system actions
+	 * @param owner the owner of the action
+	 * @param name the name to match
+	 * @return the matching action; null if no matching action can be found
+	 */
+	public static DockingActionIf getAction(Tool tool, String owner, String name) {
+		Set<DockingActionIf> actions = getActionsByOwnerAndName(tool, owner, name);
+		if (actions.isEmpty()) {
+			return null;
+		}
+
+		if (actions.size() > 1) {
+			// This shouldn't happen
+			throw new AssertionFailedError(
+				"Found more than one action for name '" + name + " (" + owner + ")'");
+		}
+
+		return CollectionUtils.any(actions);
+	}
+
+	/**
+	 * Returns the action by the given name that belongs to the given provider
+	 * 
+	 * @param provider the provider
+	 * @param actionName the action name
+	 * @return the action
+	 */
+	public static DockingActionIf getLocalAction(ComponentProvider provider, String actionName) {
+		Tool tool = provider.getTool();
+		DockingToolActions toolActions = tool.getToolActions();
+		DockingActionIf action = toolActions.getLocalAction(provider, actionName);
+		return action;
 	}
 
 	/**
@@ -1252,7 +1325,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 			}
 
 			actionContext = newContext;
-			actionContext.setSource(provider.getComponent());
+			actionContext.setSourceObject(provider.getComponent());
 
 			return actionContext;
 		});
@@ -1275,7 +1348,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 		ActionContext context = runSwing(() -> {
 			ActionContext actionContext = provider.getActionContext(null);
 			if (actionContext != null) {
-				actionContext.setSource(provider.getComponent());
+				actionContext.setSourceObject(provider.getComponent());
 			}
 			return actionContext;
 		});
@@ -1417,8 +1490,8 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	/**
 	 * Simulates a user initiated keystroke using the keybinding of the given action
 	 * 
-	 * @param destination the action's destination component
-	 * @param action The action to simulate pressing.
+	 * @param destination the component for the action being executed
+	 * @param action The action to simulate pressing
 	 */
 	public static void triggerActionKey(Component destination, DockingActionIf action) {
 
@@ -1491,7 +1564,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * <br>ABCDEFGHIJKLMNOPQRSTUVWXYZ
 	 * <br>abcdefghijklmnopqrstuvwxyz
 	 * <br>`1234567890-=[]\;',./
-	 * <br>~!@#$%^&*()_+{}|:"&lt&gt?
+	 * <br>{@literal ~!@#$%^&*()_+{}|:"<>?}
 	 * <br>
 	 * <br>It also handles '\n', '\t', and '\b'.
 	 *
@@ -1515,7 +1588,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * <br>ABCDEFGHIJKLMNOPQRSTUVWXYZ
 	 * <br>abcdefghijklmnopqrstuvwxyz
 	 * <br>`1234567890-=[]\;',./
-	 * <br>~!@#$%^&*()_+{}|:"&lt&gt?
+	 * <br>{@literal ~!@#$%^&*()_+{}|:"<>?}
 	 * <br>
 	 * <br>It also handles '\n', '\t', and '\b'.
 	 *
@@ -1787,15 +1860,17 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 *
 	 * @param tool the tool in which the provider lives
 	 * @param name the name of the provider to show
+	 * @return the newly shown provider
 	 */
-	public void showProvider(DockingTool tool, String name) {
+	public ComponentProvider showProvider(Tool tool, String name) {
 		ComponentProvider provider = tool.getComponentProvider(name);
 		tool.showComponentProvider(provider, true);
+		return provider;
 	}
 
 	/**
 	 * Closes the given provider.  You could just call
-	 * {@link DockingTool#removeComponentProvider(ComponentProvider)}, but some providers have extra
+	 * {@link Tool#removeComponentProvider(ComponentProvider)}, but some providers have extra
 	 * logic that happens when {@link ComponentProvider#closeComponent()} is called.   This will
 	 * likely change in the future.
 	 *
@@ -1996,7 +2071,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	}
 
 	public static GTreeNode getNode(GTree tree, String... path) {
-		GTreeRootNode rootNode = tree.getRootNode();
+		GTreeNode rootNode = tree.getModelRoot();
 		String rootName = path[0];
 		if (!rootNode.getName().equals(rootName)) {
 			throw new RuntimeException(
@@ -2112,6 +2187,25 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 		return ref.get();
 	}
 
+	/**
+	 * Creates a generic action context with no provider, with the given payload
+	 * @param payload the generic object to put in the context
+	 * @return the new context
+	 */
+	public ActionContext createContext(Object payload) {
+		return new ActionContext().setContextObject(payload);
+	}
+
+	/**
+	 * Creates a generic action context with the given provider, with the given payload
+	 * @param provider the provider
+	 * @param payload the generic object to put in the context
+	 * @return the new context
+	 */
+	public ActionContext createContext(ComponentProvider provider, Object payload) {
+		return new ActionContext(provider).setContextObject(payload);
+	}
+
 //==================================================================================================
 // Screen Capture
 //==================================================================================================
@@ -2126,7 +2220,7 @@ public abstract class AbstractDockingTest extends AbstractGenericTest {
 	 * @param name the file name suffix
 	 * @throws Exception if there is any issue capturing the component
 	 */
-	public void capture(JComponent c, String name) throws Exception {
+	public void capture(Component c, String name) throws Exception {
 
 		// old way of grabbing images--still need this if you want to capture a window's
 		// decorations

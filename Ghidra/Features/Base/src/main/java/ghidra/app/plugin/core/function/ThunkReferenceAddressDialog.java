@@ -243,14 +243,14 @@ public class ThunkReferenceAddressDialog extends DialogComponentProvider {
 			return null;
 		}
 
-		List<Namespace> namespaces = NamespaceUtils.getNamespaces(parentNs, null, program);
+		List<Namespace> namespaces = NamespaceUtils.getNamespaceByPath(program, null, parentNs);
 
 		if (namespaces.isEmpty()) {
 			SymbolTable symbolTable = program.getSymbolTable();
 			for (String libraryName : program.getExternalManager().getExternalLibraryNames()) {
 				Symbol librarySymbol = symbolTable.getLibrarySymbol(libraryName);
-				namespaces = NamespaceUtils.getNamespaces(parentNs,
-					(Library) librarySymbol.getObject(), program);
+				namespaces = NamespaceUtils.getNamespaceByPath(program,
+					(Library) librarySymbol.getObject(), parentNs);
 				if (!namespaces.isEmpty()) {
 					break; // use first library containing namespace
 				}
@@ -279,7 +279,7 @@ public class ThunkReferenceAddressDialog extends DialogComponentProvider {
 		while (symbolIterator.hasNext()) {
 			Symbol s = symbolIterator.next();
 			SymbolType type = s.getSymbolType();
-			if (type == SymbolType.FUNCTION || type == SymbolType.CODE) {
+			if (type == SymbolType.FUNCTION || type == SymbolType.LABEL) {
 				Symbol thunkedSymbol = getThunkedSymbol(s);
 				if (thunkedSymbol != null) {
 					// ignore equivalent thunks
@@ -325,7 +325,7 @@ public class ThunkReferenceAddressDialog extends DialogComponentProvider {
 		ExternalManager externalManager = program.getExternalManager();
 		for (Symbol s : symbolTable.getExternalSymbols()) {
 			SymbolType type = s.getSymbolType();
-			if (type == SymbolType.FUNCTION || type == SymbolType.CODE) {
+			if (type == SymbolType.FUNCTION || type == SymbolType.LABEL) {
 				ExternalLocation externalLocation = externalManager.getExternalLocation(s);
 				String originalName = externalLocation.getOriginalImportedName();
 				if (name.equals(originalName)) {

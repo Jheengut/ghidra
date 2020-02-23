@@ -64,6 +64,7 @@ public abstract class CompositeEditorProvider extends ComponentProviderAdapter
 		super(plugin.getTool(), "Composite Editor", plugin.getName());
 		this.plugin = plugin;
 		setIcon(EDITOR_ICON);
+		setTransient();
 		listeners = WeakDataStructureFactory.createSingleThreadAccessWeakSet();
 		initializeServices();
 	}
@@ -206,11 +207,6 @@ public abstract class CompositeEditorProvider extends ComponentProviderAdapter
 
 	@Override
 	public void dispose() {
-		CompositeEditorTableAction[] allActions = actionMgr.getAllActions();
-		for (CompositeEditorTableAction allAction : allActions) {
-			tool.removeLocalAction(this, allAction);
-		}
-		tool.showComponentProvider(this, false);
 		tool.removeComponentProvider(this);
 		for (EditorListener el : listeners) {
 			el.closed(this);

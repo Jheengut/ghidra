@@ -21,6 +21,7 @@ import java.util.*;
 import javax.swing.*;
 
 import docking.*;
+import docking.actions.KeyBindingUtils;
 import ghidra.util.Swing;
 
 /**
@@ -29,37 +30,19 @@ import ghidra.util.Swing;
 public class MultipleKeyAction extends DockingKeyBindingAction {
 	private List<ActionData> actions = new ArrayList<>();
 
-	private ActionDialog dialog;
-
-	class ActionData {
-		DockingActionIf action;
-		ComponentProvider provider;
-
-		ActionData(DockingActionIf action, ComponentProvider provider) {
-			this.action = action;
-			this.provider = provider;
-		}
-
-		boolean isGlobalAction() {
-			return provider == null;
-		}
-
-		boolean isMyProvider(ComponentProvider otherProvider) {
-			return provider == otherProvider;
-		}
-	}
+	private MultiActionDialog dialog;
 
 	/**
 	 * Creates new MultipleKeyAction
 	 *
-	 * @param winMgr window manager used to determine context.
+	 * @param tool used to determine context
 	 * @param provider the provider, if any, associated with the action
 	 * @param action action that will be added to the list of actions bound to a keystroke
 	 * @param keyStroke the keystroke, if any, associated with the action
 	 */
-	public MultipleKeyAction(DockingWindowManager winMgr, ComponentProvider provider,
-			DockingActionIf action, KeyStroke keyStroke) {
-		super(winMgr, action, keyStroke);
+	public MultipleKeyAction(Tool tool, ComponentProvider provider, DockingActionIf action,
+			KeyStroke keyStroke) {
+		super(tool, action, keyStroke);
 		addAction(provider, action);
 	}
 
@@ -80,6 +63,7 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 			throw new IllegalArgumentException(
 				"KeyStrokes don't match - was: " + keyStroke + " new: " + keyBinding);
 		}
+
 		actions.add(new ActionData(action, provider));
 	}
 
@@ -133,12 +117,11 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 	@Override
 	public void actionPerformed(final ActionEvent event) {
 		// Build list of actions which are valid in current context
-		ComponentProvider localProvider = winMgr.getActiveComponentProvider();
+		ComponentProvider localProvider = tool.getActiveComponentProvider();
 		ActionContext localContext = getLocalContext(localProvider);
-		localContext.setSource(event.getSource());
+		localContext.setSourceObject(event.getSource());
 
-		ActionContext globalContext = winMgr.getGlobalContext();
-		List<ExecutableKeyActionAdapter> list = getValidContextActions(localContext, globalContext);
+		List<ExecutableKeyActionAdapter> list = getValidContextActions(localContext);
 
 		// If menu active, disable all key bindings
 		if (ignoreActionWhileMenuShowing()) {
@@ -149,7 +132,7 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 		if (list.size() > 1) {
 			// popup dialog to show multiple actions
 			if (dialog == null) {
-				dialog = new ActionDialog(parseKeyStroke(keyStroke), list);
+				dialog = new MultiActionDialog(KeyBindingUtils.parseKeyStroke(keyStroke), list);
 			}
 			else {
 				dialog.setActionList(list);
@@ -162,12 +145,12 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 		}
 		else if (list.size() == 1) {
 			final ExecutableKeyActionAdapter actionProxy = list.get(0);
-			winMgr.setStatusText("");
+			tool.setStatusInfo("");
 			actionProxy.execute();
 		}
 		else {
 			String name = (String) getValue(Action.NAME);
-			winMgr.setStatusText("Action (" + name + ") not valid in this context!", true);
+			tool.setStatusInfo("Action (" + name + ") not valid in this context!", true);
 		}
 	}
 
@@ -180,16 +163,17 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 		return menuManager.getSelectedPath().length != 0;
 	}
 
-	private List<ExecutableKeyActionAdapter> getValidContextActions(ActionContext localContext,
-			ActionContext globalContext) {
+	private List<ExecutableKeyActionAdapter> getValidContextActions(ActionContext localContext) {
 		List<ExecutableKeyActionAdapter> list = new ArrayList<>();
 		boolean hasLocalActionsForKeyBinding = false;
 
-		// search for local actions first...
+		// 
+		// 1) Prefer local actions for the active provider
+		// 
 		for (ActionData actionData : actions) {
-			if (actionData.isMyProvider(localContext.getComponentProvider())) {
+			if (actionData.isMyProvider(localContext)) {
 				hasLocalActionsForKeyBinding = true;
-				if (actionData.action.isEnabledForContext(localContext)) {
+				if (isValidAndEnabled(actionData, localContext)) {
 					list.add(new ExecutableKeyActionAdapter(actionData.action, localContext));
 				}
 			}
@@ -201,25 +185,49 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 			return list;
 		}
 
-		// ...no locals, see if we have any global actions
+		//
+		// 2) Check for actions local to the source component 
+		// 
+		for (ActionData actionData : actions) {
+			if (!(actionData.action instanceof ComponentBasedDockingAction)) {
+				continue;
+			}
+
+			ComponentBasedDockingAction componentAction =
+				(ComponentBasedDockingAction) actionData.action;
+			if (componentAction.isValidComponentContext(localContext)) {
+				hasLocalActionsForKeyBinding = true;
+				if (isValidAndEnabled(actionData, localContext)) {
+					list.add(new ExecutableKeyActionAdapter(actionData.action, localContext));
+				}
+			}
+		}
+
+		if (hasLocalActionsForKeyBinding) {
+			// We have locals, ignore the globals.  This prevents global actions from processing
+			// the given keybinding when a local action exits, regardless of enablement.
+			return list;
+		}
+
+		// 
+		// 3) Check for global actions
+		// 
 		for (ActionData actionData : actions) {
 			if (actionData.isGlobalAction()) {
 				// When looking for context matches, we prefer local context, even though this
 				// is a 'global' action.  This allows more specific context to be used when
 				// available
-				if (actionData.action.isValidContext(localContext)) {
-					if (actionData.action.isEnabledForContext(localContext)) {
-						list.add(new ExecutableKeyActionAdapter(actionData.action, localContext));
-					}
-				}
-				else if (actionData.action.isValidGlobalContext(globalContext)) {
-					if (actionData.action.isEnabledForContext(globalContext)) {
-						list.add(new ExecutableKeyActionAdapter(actionData.action, globalContext));
-					}
+				if (isValidAndEnabled(actionData, localContext)) {
+					list.add(new ExecutableKeyActionAdapter(actionData.action, localContext));
 				}
 			}
 		}
 		return list;
+	}
+
+	private boolean isValidAndEnabled(ActionData actionData, ActionContext localContext) {
+		DockingActionIf a = actionData.action;
+		return a.isValidContext(localContext) && a.isEnabledForContext(localContext);
 	}
 
 	@Override
@@ -229,11 +237,9 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 
 	@Override
 	public KeyBindingPrecedence getKeyBindingPrecedence() {
-		ComponentProvider localProvider = winMgr.getActiveComponentProvider();
+		ComponentProvider localProvider = tool.getActiveComponentProvider();
 		ActionContext localContext = getLocalContext(localProvider);
-		ActionContext globalContext = winMgr.getGlobalContext();
-		List<ExecutableKeyActionAdapter> validActions =
-			getValidContextActions(localContext, globalContext);
+		List<ExecutableKeyActionAdapter> validActions = getValidContextActions(localContext);
 
 		if (validActions.isEmpty()) {
 			return null; // a signal that no actions are valid for the current context
@@ -272,5 +278,30 @@ public class MultipleKeyAction extends DockingKeyBindingAction {
 		}
 
 		return buildy.toString();
+	}
+
+	private class ActionData {
+		DockingActionIf action;
+		ComponentProvider provider;
+
+		ActionData(DockingActionIf action, ComponentProvider provider) {
+			this.action = action;
+			this.provider = provider;
+		}
+
+		boolean isGlobalAction() {
+			return provider == null;
+		}
+
+		boolean isMyProvider(ActionContext localContext) {
+			ComponentProvider otherProvider = localContext.getComponentProvider();
+			return provider == otherProvider;
+		}
+
+		@Override
+		public String toString() {
+			String providerString = provider == null ? "" : provider.toString() + " - ";
+			return providerString + action;
+		}
 	}
 }

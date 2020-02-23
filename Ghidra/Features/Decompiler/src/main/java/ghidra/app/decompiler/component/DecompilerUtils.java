@@ -20,7 +20,9 @@ import java.util.*;
 import docking.widgets.fieldpanel.field.Field;
 import docking.widgets.fieldpanel.support.*;
 import ghidra.app.decompiler.*;
+import ghidra.app.plugin.core.decompile.DecompilerActionContext;
 import ghidra.program.model.address.*;
+import ghidra.program.model.data.DataType;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.pcode.*;
@@ -28,20 +30,24 @@ import ghidra.program.model.pcode.*;
 public class DecompilerUtils {
 
 	/**
-	 * If the token refers to an individual Varnode, return it. Otherwise return null;
+	 * If the token refers to an individual Varnode, return it. Otherwise return null
+	 * 
+	 * @param token the token to check
 	 * @return the Varnode or null otherwise
 	 */
-	public static Varnode getVarnodeRef(ClangToken vartoken) {
-		if (vartoken == null) {
+	public static Varnode getVarnodeRef(ClangToken token) {
+		if (token == null) {
 			return null;
 		}
-		if (vartoken instanceof ClangVariableToken) {
-			Varnode res = vartoken.getVarnode();
+
+		if (token instanceof ClangVariableToken) {
+			Varnode res = token.getVarnode();
 			if (res != null) {
 				return res;
 			}
 		}
-		ClangNode parent = vartoken.Parent();
+
+		ClangNode parent = token.Parent();
 		if (parent instanceof ClangVariableDecl) {
 			HighVariable high = ((ClangVariableDecl) parent).getHighVariable();
 			parent = parent.Parent();
@@ -63,8 +69,8 @@ public class DecompilerUtils {
 	 * @return set of Varnodes in the slice
 	 */
 	public static Set<Varnode> getForwardSlice(Varnode seed) {
-		HashSet<Varnode> varnodes = new HashSet<>();
-		ArrayList<Varnode> worklist = new ArrayList<>();
+		Set<Varnode> varnodes = new HashSet<>();
+		List<Varnode> worklist = new ArrayList<>();
 		worklist.add(seed);
 
 		for (int i = 0; i < worklist.size(); i++) {
@@ -97,8 +103,8 @@ public class DecompilerUtils {
 	}
 
 	public static Set<Varnode> getBackwardSlice(Varnode seed) {
-		HashSet<Varnode> varnodes = new HashSet<>();
-		ArrayList<Varnode> worklist = new ArrayList<>();
+		Set<Varnode> varnodes = new HashSet<>();
+		List<Varnode> worklist = new ArrayList<>();
 		worklist.add(seed);
 
 		for (int i = 0; i < worklist.size(); i++) {
@@ -209,7 +215,12 @@ public class DecompilerUtils {
 	}
 
 	/**
-	 * @return the function referenced by the given token
+	 * Returns the function represented by the given token.  This will be either the 
+	 * decompiled function or a function referenced within the decompiled function.
+	 * 
+	 * @param program the program
+	 * @param token the token
+	 * @return the function
 	 */
 	public static Function getFunction(Program program, ClangFuncNameToken token) {
 
@@ -221,6 +232,7 @@ public class DecompilerUtils {
 				return clangFunction.getHighFunction().getFunction();
 			}
 		}
+
 		if (parent instanceof ClangStatement) {
 			// sub-function call
 			PcodeOp pcodeOp = token.getPcodeOp();
@@ -239,6 +251,10 @@ public class DecompilerUtils {
 	 * @return index of field, or -1
 	 */
 	public static int findIndexOfFirstField(List<ClangToken> queryTokens, Field[] fields) {
+		if (queryTokens.isEmpty()) {
+			return -1;
+		}
+
 		for (int i = 0; i < fields.length; i++) {
 			ClangTextField f = (ClangTextField) fields[i];
 			List<ClangToken> fieldTokens = f.getTokens();
@@ -250,6 +266,32 @@ public class DecompilerUtils {
 			}
 		}
 		return -1;
+	}
+
+	/**
+	 * Similar to {@link #getTokens(ClangNode, AddressSetView)}, but uses the tokens from
+	 * the given view fields.  Sometimes the tokens in the model (represented by the 
+	 * {@link ClangNode}) are different than the fields in the view (such as when a list of 
+	 * comment tokens are condensed into a single comment token).
+	 * 
+	 * @param fields the fields to check
+	 * @param address the address each returned token must match
+	 * @return the matching tokens
+	 */
+	public static List<ClangToken> getTokensFromView(Field[] fields, Address address) {
+
+		AddressSetView set = new AddressSet(address);
+		List<ClangToken> result = new ArrayList<>();
+		for (Field f : fields) {
+			ClangTextField tf = (ClangTextField) f;
+			List<ClangToken> fieldTokens = tf.getTokens();
+			for (ClangToken token : fieldTokens) {
+				if (intersects(token, set)) {
+					result.add(token);
+				}
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -265,26 +307,8 @@ public class DecompilerUtils {
 	}
 
 	public static List<ClangToken> getTokens(ClangNode root, Address address) {
-		List<ClangToken> tokenList = new ArrayList<>();
-		collectTokens(tokenList, root, address);
-		return tokenList;
-	}
-
-	private static void collectTokens(List<ClangToken> tokenList, ClangNode parentNode,
-			Address address) {
-		int nchild = parentNode.numChildren();
-		for (int i = 0; i < nchild; i++) {
-			ClangNode node = parentNode.Child(i);
-			if (node.numChildren() > 0) {
-				collectTokens(tokenList, node, address);
-			}
-			else if (node instanceof ClangToken) {
-				ClangToken token = (ClangToken) node;
-				if (intersects(token, address)) {
-					tokenList.add((ClangToken) node);
-				}
-			}
-		}
+		AddressSet set = new AddressSet(address);
+		return getTokens(root, set);
 	}
 
 	private static void collectTokens(List<ClangToken> tokenList, ClangNode parentNode,
@@ -314,19 +338,8 @@ public class DecompilerUtils {
 		return addressSet.intersects(minAddress, maxAddress);
 	}
 
-	private static boolean intersects(ClangToken token, Address address) {
-		Address minAddress = token.getMinAddress();
-		if (minAddress == null) {
-			return false;
-		}
-		Address maxAddress = token.getMaxAddress();
-		if (maxAddress == null) {
-			return minAddress.equals(maxAddress);
-		}
-		return address.compareTo(minAddress) >= 0 && address.compareTo(maxAddress) <= 0;
-	}
+	public static Address getClosestAddress(Program program, ClangToken token) {
 
-	public static Address getClosestAddress(ClangToken token) {
 		Address address = token.getMinAddress();
 		if (address != null) {
 			return address;
@@ -378,7 +391,7 @@ public class DecompilerUtils {
 	/**
 	 * Find closest addressed token to a specified token or null if one is not found.
 	 * Only adjacent tokens on the same line are examined.
-	 * @param token
+	 * @param token the query token
 	 * @return closest addressed token
 	 */
 	private static ClangToken findClosestAddressedToken(ClangToken token) {
@@ -654,4 +667,42 @@ public class DecompilerUtils {
 		return lines;
 	}
 
+	/**
+	 * Returns the data type for the given context if the context pertains to a data type
+	 * 
+	 * @param context the context
+	 * @return the data type or null
+	 */
+	public static DataType getDataType(DecompilerActionContext context) {
+
+		DecompilerPanel decompilerPanel = context.getDecompilerPanel();
+
+		// prefer the selection over the current location
+		ClangToken token = decompilerPanel.getSelectedToken();
+		if (token == null) {
+			token = context.getTokenAtCursor();
+		}
+
+		Varnode varnode = DecompilerUtils.getVarnodeRef(token);
+		if (varnode != null) {
+			HighVariable highVariable = varnode.getHigh();
+			if (highVariable != null) {
+				DataType dataType = highVariable.getDataType();
+				return dataType;
+
+			}
+		}
+
+		if (token instanceof ClangTypeToken) {
+			DataType dataType = ((ClangTypeToken) token).getDataType();
+			return dataType;
+		}
+
+		if (token instanceof ClangFieldToken) {
+			DataType dataType = ((ClangFieldToken) token).getDataType();
+			return dataType;
+		}
+
+		return null;
+	}
 }

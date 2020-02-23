@@ -22,7 +22,6 @@ import java.util.function.Supplier;
 import javax.swing.*;
 
 import docking.*;
-import docking.action.DockingActionIf;
 import docking.widgets.fieldpanel.FieldPanel;
 import edu.uci.ics.jung.graph.Graph;
 import generic.stl.Pair;
@@ -48,8 +47,7 @@ import ghidra.program.model.address.*;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.symbol.*;
 import ghidra.program.util.*;
-import ghidra.util.HelpLocation;
-import ghidra.util.SystemUtilities;
+import ghidra.util.*;
 import ghidra.util.datastruct.WeakDataStructureFactory;
 import ghidra.util.datastruct.WeakSet;
 import ghidra.util.exception.AssertException;
@@ -104,13 +102,20 @@ public class FGProvider extends VisualGraphComponentProvider<FGVertex, FGEdge, F
 		controller = new FGController(this, plugin);
 
 		setConnected(isConnected);
+		setIcon(FunctionGraphPlugin.ICON);
+		if (!isConnected) {
+			setTransient();
+		}
+		else {
+			addToToolbar();
+		}
 
 		decorationPanel = new DecoratorPanel(controller.getViewComponent(), isConnected);
 		setWindowMenuGroup(FunctionGraphPlugin.FUNCTION_GRAPH_NAME);
 		setWindowGroup(FunctionGraphPlugin.FUNCTION_GRAPH_NAME);
 		setDefaultWindowPosition(WindowPosition.WINDOW);
+
 		setHelpLocation(new HelpLocation("FunctionGraphPlugin", "FunctionGraphPlugin"));
-		setIcon(FunctionGraphPlugin.ICON);
 
 		addToTool();
 		addSatelliteFeature(); // must be after addToTool();
@@ -128,17 +133,17 @@ public class FGProvider extends VisualGraphComponentProvider<FGVertex, FGEdge, F
 		setClipboardService(service);
 	}
 
+	@Override
+	public boolean isSnapshot() {
+		// we are a snapshot when we are 'disconnected' 
+		return !isConnected();
+	}
+
 	public void setClipboardService(ClipboardService service) {
 		clipboardService = service;
 		if (clipboardService != null) {
 			clipboardService.registerClipboardContentProvider(clipboardProvider);
 		}
-	}
-
-	@Override
-	protected void addLocalAction(DockingActionIf action) {
-		// overridden just to open package access
-		super.addLocalAction(action);
 	}
 
 	FGController getController() {
@@ -203,7 +208,7 @@ public class FGProvider extends VisualGraphComponentProvider<FGVertex, FGEdge, F
 
 	void cloneWindow() {
 		FGProvider newProvider = plugin.createNewDisconnectedProvider();
-		SystemUtilities.runSwingLater(() -> {
+		Swing.runLater(() -> {
 			newProvider.doSetProgram(currentProgram);
 
 			FGData currentData = controller.getFunctionGraphData();
@@ -560,6 +565,17 @@ public class FGProvider extends VisualGraphComponentProvider<FGVertex, FGEdge, F
 	 */
 	public void refreshAndResetPerspective() {
 		refresh(false);
+	}
+
+	/**
+	 * Tells the graph that some display data may have changed, but the changes are not worth 
+	 * performing a full rebuild
+	 */
+	public void refreshDisplayWithoutRebuilding() {
+		FGData functionGraphData = controller.getFunctionGraphData();
+		if (functionGraphData.hasResults()) {
+			controller.refreshDisplayWithoutRebuilding();
+		}
 	}
 
 	@Override

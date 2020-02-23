@@ -364,7 +364,8 @@ public class ListingMergePanel extends JPanel
 	}
 
 	/**
-	 * @param navigator
+	 * Adds a button press listener.
+	 * @param listener the listener to add.
 	 */
 	public void addButtonPressedListener(ButtonPressedListener listener) {
 		for (ListingPanel listingPanel : listingPanels) {
@@ -472,6 +473,12 @@ public class ListingMergePanel extends JPanel
 
 		@Override
 		public boolean goToExternalLocation(ExternalLocation extLoc,
+				boolean checkNavigationOption) {
+			return false;
+		}
+
+		@Override
+		public boolean goToExternalLocation(Navigatable navigatable, ExternalLocation externalLoc,
 				boolean checkNavigationOption) {
 			return false;
 		}

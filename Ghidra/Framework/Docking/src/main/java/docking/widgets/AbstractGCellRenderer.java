@@ -34,19 +34,14 @@ public abstract class AbstractGCellRenderer extends GDHtmlLabel {
 
 	private static final Color ALTERNATE_BACKGROUND_COLOR = new Color(237, 243, 254);
 
-	/** Allows the user to disable alternating row colors on JLists & JTables */
+	/** Allows the user to disable alternating row colors on JLists and JTables */
 	private static final String DISABLE_ALTERNATING_ROW_COLORS_PROPERTY =
 		"disable.alternating.row.colors";
 
 	protected static boolean systemAlternateRowColors = getAlternateRowColors();
 
 	private static boolean getAlternateRowColors() {
-		String disable = System.getProperty(DISABLE_ALTERNATING_ROW_COLORS_PROPERTY);
-		if (disable == null) {
-			return true;
-		}
-
-		return !Boolean.parseBoolean(disable);
+		return !Boolean.getBoolean(DISABLE_ALTERNATING_ROW_COLORS_PROPERTY);
 	}
 
 	protected final Border focusBorder;
@@ -106,7 +101,7 @@ public abstract class AbstractGCellRenderer extends GDHtmlLabel {
 	protected Color getOSDependentBackgroundColor(JComponent parent, int row) {
 
 		if (!shouldAlternateRowBackgroundColor()) {
-			return parent.getBackground();
+			return getDefaultBackgroundColor();
 		}
 
 // For now we always alternate row colors--it actually makes the various LaFs look nicer
@@ -160,10 +155,14 @@ public abstract class AbstractGCellRenderer extends GDHtmlLabel {
 		return boldFont;
 	}
 
-	protected static Color getBackgroundColorForRow(int row) {
+	protected Color getDefaultBackgroundColor() {
+		return Color.WHITE;
+	}
+
+	protected Color getBackgroundColorForRow(int row) {
 
 		if ((row & 1) == 1) {
-			return Color.WHITE;
+			return getDefaultBackgroundColor();
 		}
 		return ALTERNATE_BACKGROUND_COLOR;
 	}

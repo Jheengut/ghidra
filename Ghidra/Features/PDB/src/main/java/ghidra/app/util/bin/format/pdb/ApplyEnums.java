@@ -38,7 +38,7 @@ class ApplyEnums {
 	 * @param log message log
 	 * @throws CancelledException if task cancelled
 	 */
-	static void applyTo(XmlPullParser xmlParser, PdbParserNEW pdbParser, TaskMonitor monitor,
+	static void applyTo(XmlPullParser xmlParser, PdbParser pdbParser, TaskMonitor monitor,
 			MessageLog log) throws CancelledException {
 		monitor.setMessage("Applying enums...");
 		while (xmlParser.hasNext()) {
@@ -77,7 +77,7 @@ class ApplyEnums {
 			enumdt.add(name, memberValue);
 		}
 		catch (Exception e) {
-			log.appendMsg(e.getMessage());
+			log.appendMsg("PDB", "Enum " + enumdt.getName() + ": " + e.getMessage());
 		}
 	}
 }

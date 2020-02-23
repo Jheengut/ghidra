@@ -82,7 +82,7 @@ public class PointerDataType extends BuiltIn implements Pointer {
 	 * see {@link #PointerDataType(DataType)}) instead of explicitly specifying 
 	 * the pointer length value.
 	 * @param referencedDataType data type this pointer points to
-	 * @param length pointer length (values <= 0 will result in dynamically-sized pointer)
+	 * @param length pointer length (values &lt;= 0 will result in dynamically-sized pointer)
 	 */
 	public PointerDataType(DataType referencedDataType, int length) {
 		this(referencedDataType, length, null);
@@ -93,7 +93,7 @@ public class PointerDataType extends BuiltIn implements Pointer {
 	 * The pointer size is established dynamically based upon the data organization 
 	 * associated with the specified dtm but can adapt to another data type manager's 
 	 * data organization when resolved.
-	 * @param dt data type this pointer points to
+	 * @param referencedDataType data type this pointer points to
 	 * @param dtm data-type manager whose data organization should be used
 	 */
 	public PointerDataType(DataType referencedDataType, DataTypeManager dtm) {
@@ -112,6 +112,11 @@ public class PointerDataType extends BuiltIn implements Pointer {
 	public PointerDataType(DataType referencedDataType, int length, DataTypeManager dtm) {
 		super(referencedDataType != null ? referencedDataType.getCategoryPath() : null,
 			constructUniqueName(referencedDataType, length), dtm);
+		if (referencedDataType instanceof BitFieldDataType) {
+			throw new IllegalArgumentException(
+				"Pointer reference data-type may not be a bitfield: " +
+					referencedDataType.getName());
+		}
 		this.length = length <= 0 ? -1 : length;
 		this.referencedDataType = referencedDataType;
 		if (referencedDataType != null) {
@@ -188,7 +193,7 @@ public class PointerDataType extends BuiltIn implements Pointer {
 
 		String symName = symbol.getName();
 		symName = SymbolUtilities.getCleanSymbolName(symName, ref.getToAddress());
-		symName = symName.replace(Namespace.NAMESPACE_DELIMITER, "_");
+		symName = symName.replace(Namespace.DELIMITER, "_");
 		return POINTER_LABEL_PREFIX + "_" + symName;
 	}
 

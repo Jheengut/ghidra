@@ -15,16 +15,18 @@
  */
 package docking.menu;
 
-import ghidra.util.StringUtilities;
-
 import java.awt.event.*;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
 import javax.swing.*;
 
+import org.apache.commons.lang3.StringUtils;
+
 import docking.*;
 import docking.action.*;
+import ghidra.docking.util.DockingWindowsLookAndFeelUtils;
+import ghidra.util.StringUtilities;
 
 /**
  * Class to manager toolbar buttons.
@@ -41,8 +43,7 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 	/**
 	 * Constructs a new ToolBarItemManager
 	 * @param action the action to be managed on the toolbar.
-	 * @param iconSize the iconSize to scale to.
-	 * @param buttonListener listener for button state changes.
+	 * @param windowManager the window manager.
 	 */
 	public ToolBarItemManager(DockingActionIf action, DockingWindowManager windowManager) {
 		this.toolBarAction = action;
@@ -78,7 +79,7 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 	}
 
 	private void setToolTipText(JButton button, DockingActionIf action, String toolTipText) {
-		String keyBindingText = getKeyBindingAcceleratorText(action.getKeyBinding());
+		String keyBindingText = getKeyBindingAcceleratorText(button, action.getKeyBinding());
 		if (keyBindingText != null) {
 			button.setToolTipText(combingToolTipTextWithKeyBinding(toolTipText, keyBindingText));
 		}
@@ -93,7 +94,7 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 		StringBuilder buffy = new StringBuilder(toolTipText);
 		if (StringUtilities.startsWithIgnoreCase(toolTipText, "<HTML>")) {
 			String endHTMLTag = "</HTML>";
-			int closeTagIndex = StringUtilities.indexOfIgnoreCase(toolTipText, endHTMLTag);
+			int closeTagIndex = StringUtils.indexOfIgnoreCase(toolTipText, endHTMLTag);
 			if (closeTagIndex < 0) {
 				// no closing tag, which is acceptable
 				buffy.append(START_KEYBINDING_TEXT).append(keyBindingText).append(
@@ -114,13 +115,13 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 
 	private String getToolTipText(DockingActionIf action) {
 		String description = action.getDescription();
-		if (description != null && description.trim().length() > 0) {
+		if (!StringUtils.isEmpty(description)) {
 			return description;
 		}
 		return action.getName();
 	}
 
-	private String getKeyBindingAcceleratorText(KeyStroke keyStroke) {
+	private String getKeyBindingAcceleratorText(JButton button, KeyStroke keyStroke) {
 		if (keyStroke == null) {
 			return null;
 		}
@@ -129,8 +130,12 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 		StringBuilder builder = new StringBuilder();
 		int modifiers = keyStroke.getModifiers();
 		if (modifiers > 0) {
-			builder.append(KeyEvent.getKeyModifiersText(modifiers));
-			builder.append('+');
+			builder.append(InputEvent.getModifiersExText(modifiers));
+
+			// The Aqua LaF does not use the '+' symbol between modifiers
+			if (!DockingWindowsLookAndFeelUtils.isUsingAquaUI(button.getUI())) {
+				builder.append('+');
+			}
 		}
 		int keyCode = keyStroke.getKeyCode();
 		if (keyCode != 0) {
@@ -184,36 +189,23 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 	@Override
 	public void actionPerformed(ActionEvent event) {
 		DockingWindowManager.clearMouseOverHelp();
-		ActionContext localContext = getActionContext();
-		ActionContext globalContext = null;
-		if (windowManager != null) {
-			globalContext = windowManager.getGlobalContext();
+		ActionContext context = getActionContext();
+
+		if (!toolBarAction.isValidContext(context)) {
+			return;
 		}
 
-		ActionContext tempContext = null;
-		if (toolBarAction.isValidContext(localContext)) {
-			tempContext = localContext; // we prefer the local over the global context if valid
-		}
-		else if (toolBarAction.isValidGlobalContext(globalContext)) {
-			tempContext = globalContext;
-		}
-		else {
-			return;  // context is not valid, nothing to do
-		}
-		tempContext.setSource(event.getSource());
-		final ActionContext finalContext = tempContext;
+		context.setSourceObject(event.getSource());
 
 		// this gives the UI some time to repaint before executing the action
-		SwingUtilities.invokeLater(new Runnable() {
-			@Override
-			public void run() {
-				if (toolBarAction.isEnabledForContext(finalContext)) {
-					if (toolBarAction instanceof ToggleDockingActionIf) {
-						ToggleDockingActionIf toggleAction = (ToggleDockingActionIf) toolBarAction;
-						toggleAction.setSelected(!toggleAction.isSelected());
-					}
-					toolBarAction.actionPerformed(finalContext);
+		SwingUtilities.invokeLater(() -> {
+			if (toolBarAction.isValidContext(context) &&
+				toolBarAction.isEnabledForContext(context)) {
+				if (toolBarAction instanceof ToggleDockingActionIf) {
+					ToggleDockingActionIf toggleAction = (ToggleDockingActionIf) toolBarAction;
+					toggleAction.setSelected(!toggleAction.isSelected());
 				}
+				toolBarAction.actionPerformed(context);
 			}
 		});
 	}
@@ -226,7 +218,8 @@ public class ToolBarItemManager implements PropertyChangeListener, ActionListene
 	private ActionContext getActionContext() {
 		ComponentProvider provider = getComponentProvider();
 		ActionContext context = provider == null ? null : provider.getActionContext(null);
-		final ActionContext actionContext = context == null ? new ActionContext() : context;
+		final ActionContext actionContext =
+			context == null ? new ActionContext(provider, null) : context;
 		return actionContext;
 	}
 

@@ -17,10 +17,12 @@ package ghidra;
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import generic.jar.ResourceFile;
 import ghidra.framework.GModule;
 import ghidra.util.SystemUtilities;
+import utility.application.ApplicationLayout;
 import utility.module.ModuleUtilities;
 
 /**
@@ -51,15 +53,17 @@ public class GhidraLauncher {
 
 		// Build the classpath
 		List<String> classpathList = new ArrayList<String>();
+		Map<String, GModule> modules = getOrderedModules(layout);
+
 		if (SystemUtilities.isInDevelopmentMode()) {
-			addModuleBinPaths(classpathList, layout.getModules());
+			addModuleBinPaths(classpathList, modules);
 			addExternalJarPaths(classpathList, layout.getApplicationRootDirs());
 		}
 		else {
 			addPatchPaths(classpathList, layout.getApplicationInstallationDir());
-			addModuleJarPaths(classpathList, layout.getModules());
+			addModuleJarPaths(classpathList, modules);
 		}
-		classpathList = orderClasspath(classpathList);
+		classpathList = orderClasspath(classpathList, modules);
 
 		// Add the classpath to the class loader
 		GhidraClassLoader loader = (GhidraClassLoader) ClassLoader.getSystemClassLoader();
@@ -79,11 +83,11 @@ public class GhidraLauncher {
 	}
 
 	/**
-	 * Add patch jars to the given path list.  This should be done
-	 * first so they take precedence in the classpath.
+	 * Add patch jars to the given path list.  This should be done first so they take precedence in 
+	 * the classpath.
 	 * 
 	 * @param pathList The list of paths to add to.
-	 * @param appRootDirs The application root directories to search.
+	 * @param installDir The application installation directory.
 	 */
 	private static void addPatchPaths(List<String> pathList, ResourceFile installDir) {
 		ResourceFile patchDir = new ResourceFile(installDir, "Ghidra/patch");
@@ -160,6 +164,12 @@ public class GhidraLauncher {
 				}
 			}
 		}
+
+		if (pathSet.isEmpty()) {
+			throw new IllegalStateException(
+				"Files listed in '" + LIBDEPS + "' are incorrect--rebuild this file");
+		}
+
 		pathList.addAll(pathSet);
 	}
 
@@ -183,20 +193,84 @@ public class GhidraLauncher {
 	}
 
 	/**
+	 * Gets the modules ordered by "class-loader priority".  This ensures that core modules (things 
+	 * in Framework/Features/Processors, etc) come before user modules (Extensions).  It also
+	 * guarantees a consistent module order from run to run.
+	 * 
+	 * @param layout The layout
+	 * @return the modules mapped by name, ordered by priority
+	 */
+	private static Map<String, GModule> getOrderedModules(ApplicationLayout layout) {
+
+		Comparator<GModule> comparator = (module1, module2) -> {
+			int nameComparison = module1.getName().compareTo(module2.getName());
+
+			// First handle modules that are external to the Ghidra installation.
+			// These should be put at the end of the list.
+			boolean external1 = ModuleUtilities.isExternalModule(module1, layout);
+			boolean external2 = ModuleUtilities.isExternalModule(module2, layout);
+			if (external1 && external2) {
+				return nameComparison;
+			}
+			if (external1) {
+				return -1;
+			}
+			if (external2) {
+				return 1;
+			}
+
+			// Now handle modules that are internal to the Ghidra installation.
+			// We will primarily order them by "type" and secondarily by name.
+			Map<String, Integer> typePriorityMap = new HashMap<>();
+			typePriorityMap.put("Framework", 0);
+			typePriorityMap.put("Configurations", 1);
+			typePriorityMap.put("Features", 2);
+			typePriorityMap.put("Processors", 3);
+			typePriorityMap.put("GPL", 4);
+			typePriorityMap.put("Extensions", 5);
+			typePriorityMap.put("Test", 6);
+
+			String type1 = module1.getModuleRoot().getParentFile().getName();
+			String type2 = module2.getModuleRoot().getParentFile().getName();
+			int priority1 = typePriorityMap.getOrDefault(type1, typePriorityMap.size());
+			int priority2 = typePriorityMap.getOrDefault(type2, typePriorityMap.size());
+			if (priority1 != priority2) {
+				return Integer.compare(priority1, priority2);
+			}
+			return nameComparison;
+		};
+
+		List<GModule> moduleList = new ArrayList<>(layout.getModules().values());
+		Collections.sort(moduleList, comparator);
+		Map<String, GModule> moduleMap = new LinkedHashMap<>();
+		for (GModule module : moduleList) {
+			moduleMap.put(module.getName(), module);
+		}
+		return moduleMap;
+	}
+
+	/**
 	 * Updates the list of paths to make sure the order is correct for any class-loading dependencies.
 	 *  
 	 * @param pathList The list of paths to order.
+	 * @param modules The modules on the classpath.
 	 * @return A new list with the elements of the original list re-ordered as needed.
 	 */
-	private static List<String> orderClasspath(List<String> pathList) {
+	private static List<String> orderClasspath(List<String> pathList,
+			Map<String, GModule> modules) {
+
+		Set<String> fatJars = modules
+			.values()
+			.stream()
+			.flatMap(m -> m.getFatJars().stream())
+			.collect(Collectors.toSet());
 
 		List<String> orderedList = new ArrayList<String>(pathList);
 
 		for (String path : pathList) {
-			if (path.endsWith("Renoir.jar")) { // Renoir.jar must be after all other jars
+			if (fatJars.contains(new File(path).getName())) {
 				orderedList.remove(path);
 				orderedList.add(path);
-				break;
 			}
 		}
 

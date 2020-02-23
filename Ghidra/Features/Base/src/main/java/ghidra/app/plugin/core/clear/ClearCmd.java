@@ -63,7 +63,6 @@ public class ClearCmd extends BackgroundCommand {
 	 * use {@link #ClearCmd(AddressSetView,ClearOptions)}.
 	 *
 	 * @param view the addresses over which to clear
-	 * @param options the options used while clearing
 	 */
 	public ClearCmd(AddressSetView view) {
 		this(view, null, view.getNumAddresses() < EVENT_LIMIT);
@@ -169,7 +168,7 @@ public class ClearCmd extends BackgroundCommand {
 				if (s.getAddress().compareTo(range.getMaxAddress()) > 0) {
 					break; // done with range
 				}
-				if (s.getSymbolType() != SymbolType.CODE) {
+				if (s.getSymbolType() != SymbolType.LABEL) {
 					continue;
 				}
 				if (s.isPinned()) {

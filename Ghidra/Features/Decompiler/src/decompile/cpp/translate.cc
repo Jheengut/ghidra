@@ -143,7 +143,8 @@ bool JoinRecord::operator<(const JoinRecord &op2) const
 AddrSpaceManager::AddrSpaceManager(void)
 
 {
-  defaultspace = (AddrSpace *)0;
+  defaultcodespace = (AddrSpace *)0;
+  defaultdataspace = (AddrSpace *)0;
   constantspace = (AddrSpace *)0;
   iopspace = (AddrSpace *)0;
   fspecspace = (AddrSpace *)0;
@@ -170,6 +171,8 @@ AddrSpace *AddrSpaceManager::restoreXmlSpace(const Element *el,const Translate *
     res = new SpacebaseSpace(this,trans);
   else if (tp == "space_unique")
     res = new UniqueSpace(this,trans);
+  else if (tp == "space_other")
+    res = new OtherSpace(this,trans);
   else if (tp == "space_overlay")
     res = new OverlaySpace(this,trans);
   else
@@ -191,7 +194,7 @@ void AddrSpaceManager::restoreXmlSpaces(const Element *el,const Translate *trans
 
 {
   // The first space should always be the constant space
-  insertSpace(new ConstantSpace(this,trans,"const",0));
+  insertSpace(new ConstantSpace(this,trans,"const",AddrSpace::constant_space_index));
 
   string defname(el->getAttributeValue("defaultspace"));
   const List &list(el->getChildren());
@@ -203,23 +206,38 @@ void AddrSpaceManager::restoreXmlSpaces(const Element *el,const Translate *trans
     ++iter;
   }
   AddrSpace *spc = getSpaceByName(defname);
-  setDefaultSpace(spc->getIndex());
+  if (spc == (AddrSpace *)0)
+    throw LowlevelError("Bad 'defaultspace' attribute: "+defname);
+  setDefaultCodeSpace(spc->getIndex());
 }
 
 /// Once all the address spaces have been initialized, this routine
 /// should be called once to establish the official \e default
 /// space for the processor, via its index. Should only be
 /// called during initialization.
-/// \todo This really shouldn't be public
 /// \param index is the index of the desired default space
-void AddrSpaceManager::setDefaultSpace(int4 index)
+void AddrSpaceManager::setDefaultCodeSpace(int4 index)
 
 {
-  if (defaultspace != (AddrSpace *)0)
+  if (defaultcodespace != (AddrSpace *)0)
     throw LowlevelError("Default space set multiple times");
-  if (baselist.size()<=index)
+  if (baselist.size()<=index || baselist[index] == (AddrSpace *)0)
     throw LowlevelError("Bad index for default space");
-  defaultspace = baselist[index];
+  defaultcodespace = baselist[index];
+  defaultdataspace = defaultcodespace;		// By default the default data space is the same
+}
+
+/// If the architecture has different code and data spaces, this routine can be called
+/// to set the \e data space after the \e code space has been set.
+/// \param index is the index of the desired default space
+void AddrSpaceManager::setDefaultDataSpace(int4 index)
+
+{
+  if (defaultcodespace == (AddrSpace *)0)
+    throw LowlevelError("Default data space must be set after the code space");
+  if (baselist.size()<=index || baselist[index] == (AddrSpace *)0)
+    throw LowlevelError("Bad index for default data space");
+  defaultdataspace = baselist[index];
 }
 
 /// For spaces with alignment restrictions, the address of a small variable must be justified
@@ -244,48 +262,49 @@ void AddrSpaceManager::setReverseJustified(AddrSpace *spc)
 void AddrSpaceManager::insertSpace(AddrSpace *spc)
 
 {
-  bool nametype_mismatch = false;
-  bool duplicatedefine = false;
+  bool nameTypeMismatch = false;
+  bool duplicateName = false;
+  bool duplicateId = false;
   switch(spc->getType()) {
   case IPTR_CONSTANT:
     if (spc->getName() != "const")
-      nametype_mismatch = true;
-    if (baselist.size()!=0)
-      throw LowlevelError("const space must be initialized first");
+      nameTypeMismatch = true;
+    if (spc->index != AddrSpace::constant_space_index)
+      throw LowlevelError("const space must be assigned index 0");
     constantspace = spc;
     break;
   case IPTR_INTERNAL:
     if (spc->getName() != "unique")
-      nametype_mismatch = true;
+      nameTypeMismatch = true;
     if (uniqspace != (AddrSpace *)0)
-      duplicatedefine = true;
+      duplicateName = true;
     uniqspace = spc;
     break;
   case IPTR_FSPEC:
     if (spc->getName() != "fspec")
-      nametype_mismatch = true;
+      nameTypeMismatch = true;
     if (fspecspace != (AddrSpace *)0)
-      duplicatedefine = true;
+      duplicateName = true;
     fspecspace = spc;
     break;
   case IPTR_JOIN:
     if (spc->getName() != "join")
-      nametype_mismatch = true;
+      nameTypeMismatch = true;
     if (joinspace != (AddrSpace *)0)
-      duplicatedefine = true;
+      duplicateName = true;
     joinspace = spc;
     break;
   case IPTR_IOP:
     if (spc->getName() != "iop")
-      nametype_mismatch = true;
+      nameTypeMismatch = true;
     if (iopspace != (AddrSpace *)0)
-      duplicatedefine = true;
+      duplicateName = true;
     iopspace = spc;
     break;
   case IPTR_SPACEBASE:
     if (spc->getName() == "stack") {
       if (stackspace != (AddrSpace *)0)
-	duplicatedefine = true;
+	duplicateName = true;
       stackspace = spc;
     }
     // fallthru
@@ -294,19 +313,36 @@ void AddrSpaceManager::insertSpace(AddrSpace *spc)
       OverlaySpace *ospc = (OverlaySpace *)spc;
       ospc->getBaseSpace()->setFlags(AddrSpace::overlaybase); // Mark the base as being overlayed
     }
-    for(uint4 i=0;i<baselist.size();++i)
-      if (baselist[i]->getName() == spc->getName())
-	duplicatedefine = true;
+    else if (spc->isOtherSpace()) {
+      if (spc->index != AddrSpace::other_space_index)
+        throw LowlevelError("OTHER space must be assigned index 1");
+    }
     break;
   }
-  if (nametype_mismatch)
+
+  if (baselist.size() <= spc->index)
+    baselist.resize(spc->index+1, (AddrSpace *)0);
+
+  duplicateId = baselist[spc->index] != (AddrSpace *)0;
+
+  if (!nameTypeMismatch && !duplicateName && !duplicateId) {
+    duplicateName = !name2Space.insert(pair<string,AddrSpace *>(spc->getName(),spc)).second;
+  }
+
+  if (nameTypeMismatch || duplicateName || duplicateId) {
+    if (spc->refcount == 0)
+      delete spc;
+    spc = (AddrSpace *)0;
+  }
+  if (nameTypeMismatch)
     throw LowlevelError("Space "+spc->getName()+" was initialized with wrong type");
-  if (duplicatedefine)
+  if (duplicateName)
     throw LowlevelError("Space "+spc->getName()+" was initialized more than once");
-  if (baselist.size() != spc->getIndex())
-    throw LowlevelError("Space "+spc->getName()+" was initialized with a bad id");
-  baselist.push_back(spc);
+  if (duplicateId)
+    throw LowlevelError("Space "+spc->getName()+" was assigned as id duplicating: "+baselist[spc->index]->getName());
+  baselist[spc->index] = spc;
   spc->refcount += 1;
+  assignShortcut(spc);
 }
 
 /// Different managers may need to share the same spaces. I.e. if different programs being
@@ -316,9 +352,13 @@ void AddrSpaceManager::insertSpace(AddrSpace *spc)
 void AddrSpaceManager::copySpaces(const AddrSpaceManager *op2)
 
 { // Insert every space in -op2- into -this- manager
-  for(int4 i=0;i<op2->baselist.size();++i)
-    insertSpace(op2->baselist[i]);
-  setDefaultSpace(op2->getDefaultSpace()->getIndex());
+  for(int4 i=0;i<op2->baselist.size();++i) {
+    AddrSpace *spc = op2->baselist[i];
+    if (spc != (AddrSpace *)0)
+      insertSpace(spc);
+  }
+  setDefaultCodeSpace(op2->getDefaultCodeSpace()->getIndex());
+  setDefaultDataSpace(op2->getDefaultDataSpace()->getIndex());
 }
 
 /// Perform the \e privileged act of associating a base register with an existing \e virtual space
@@ -353,6 +393,7 @@ AddrSpaceManager::~AddrSpaceManager(void)
 {
   for(vector<AddrSpace *>::iterator iter=baselist.begin();iter!=baselist.end();++iter) {
     AddrSpace *spc = *iter;
+    if (spc == (AddrSpace *)0) continue;
     if (spc->refcount > 1)
       spc->refcount -= 1;
     else
@@ -366,24 +407,29 @@ AddrSpaceManager::~AddrSpaceManager(void)
     delete splitlist[i];	// Delete any join records
 }
 
-/// Assign a \e shortcut character to an address space
+/// Assign a \e shortcut character to the given address space.
 /// This routine makes use of the desired type of the new space
 /// and info about shortcuts for spaces that already exist to
-/// pick a unique and consistent character.
-/// This is currently invoked by the AddrSpace initialization
-/// process.
-/// \param tp is the type of the new space
-/// \return the shortcut character
-char AddrSpaceManager::assignShortcut(spacetype tp) const
+/// pick a unique and consistent character.  This method also builds
+/// up a map from short to AddrSpace object.
+/// \param spc is the given AddrSpace
+void AddrSpaceManager::assignShortcut(AddrSpace *spc)
 
 {
-  char shortcut = 'x';
-  switch(tp) {
+  if (spc->shortcut != ' ') {	// If the shortcut is already assigned
+    shortcut2Space.insert(pair<int4,AddrSpace *>(spc->shortcut,spc));
+    return;
+  }
+  char shortcut;
+  switch(spc->getType()) {
   case IPTR_CONSTANT:
     shortcut = '#';
     break;
   case IPTR_PROCESSOR:
-    shortcut = 'r';
+    if (spc->getName() == "register")
+      shortcut = '%';
+    else
+      shortcut = spc->getName()[0];
     break;
   case IPTR_SPACEBASE:
     shortcut = 's';
@@ -400,25 +446,39 @@ char AddrSpaceManager::assignShortcut(spacetype tp) const
   case IPTR_IOP:
     shortcut = 'i';
     break;
+  default:
+    shortcut = 'x';
+    break;
   }
-  //  if ((shortcut >= 'A') && (shortcut <= 'R'))
-  //    shortcut |= 0x20;
 
-  for(int4 i=0x61;i<0x7a;++i) {
-    int4 j;
-    for(j=0;j<baselist.size();++j) {
-      if (baselist[j]->getShortcut() == shortcut)
-	break;
+  if (shortcut >= 'A' && shortcut <= 'Z')
+    shortcut += 0x20;
+
+  int4 collisionCount = 0;
+  while(!shortcut2Space.insert(pair<int4,AddrSpace *>(shortcut,spc)).second) {
+    collisionCount += 1;
+    if (collisionCount >26) {
+      // Could not find a unique shortcut, but we just re-use 'z' as we
+      // can always use the long form to specify the address if there are really so many
+      // spaces that need to be distinguishable (in the console mode)
+      spc->shortcut = 'z';
+      return;
     }
-    if (j == baselist.size()) return shortcut; // Found an open shortcut
-    shortcut = (char) i;
-    if (shortcut == 'a')
-      shortcut = '%';		// Second processor space is usually the register space
+    shortcut += 1;
+    if (shortcut < 'a' || shortcut > 'z')
+      shortcut = 'a';
   }
-  // Could not find a unique shortcut, but we just re-use 'z' as we
-  // can always use the long form to specify the address if there are really so many
-  // spaces that need to be distinguishable (in the console mode)
-  return shortcut;
+  spc->shortcut = (char)shortcut;
+}
+
+/// \param spc is the AddrSpace to mark
+/// \param size is the (minimum) size of a near pointer in bytes
+void AddrSpaceManager::markNearPointers(AddrSpace *spc,int4 size)
+
+{
+  spc->setFlags(AddrSpace::has_nearpointers);
+  if (spc->minimumPointerSize == 0 && spc->addressSize != size)
+    spc->minimumPointerSize = size;
 }
 
 /// All address spaces have a unique name associated with them.
@@ -429,10 +489,10 @@ char AddrSpaceManager::assignShortcut(spacetype tp) const
 AddrSpace *AddrSpaceManager::getSpaceByName(const string &nm) const
 
 {
-  for(int4 i=0;i<baselist.size();++i)
-    if (baselist[i]->getName() == nm)
-      return baselist[i];
-  return (AddrSpace *)0;
+  map<string,AddrSpace *>::const_iterator iter = name2Space.find(nm);
+  if (iter == name2Space.end())
+    return (AddrSpace *)0;
+  return (*iter).second;
 }
 
 /// All address spaces have a unique shortcut (ASCII) character
@@ -443,21 +503,37 @@ AddrSpace *AddrSpaceManager::getSpaceByName(const string &nm) const
 AddrSpace *AddrSpaceManager::getSpaceByShortcut(char sc) const
 
 {
-  for(int4 i=0;i<baselist.size();++i)
-    if (baselist[i]->getShortcut() == sc)
-      return baselist[i];
-  return (AddrSpace *)0;
+  map<int4,AddrSpace *>::const_iterator iter;
+  iter = shortcut2Space.find(sc);
+  if (iter == shortcut2Space.end())
+    return (AddrSpace *)0;
+  return (*iter).second;
 }
 
-Address AddrSpaceManager::resolveConstant(AddrSpace *spc,uintb val,int4 sz,const Address &point) const
+/// \brief Resolve a native constant into an Address
+///
+/// If there is a special resolver for the AddrSpace, this is invoked, otherwise
+/// basic wordsize conversion and wrapping is performed. If the address encoding is
+/// partial (as in a \e near pointer) and the full encoding can be recovered, it is passed back.
+/// The \e sz parameter indicates the number of bytes in constant and is used to determine if
+/// the constant is a partial or full pointer encoding. A value of -1 indicates the value is
+/// known to be a full encoding.
+/// \param spc is the space to generate the address from
+/// \param val is the constant encoding of the address
+/// \param sz is the size of the constant encoding (or -1)
+/// \param point is the context address (for recovering full encoding info if necessary)
+/// \param fullEncoding is used to pass back the recovered full encoding of the pointer
+/// \return the formal Address associated with the encoding
+Address AddrSpaceManager::resolveConstant(AddrSpace *spc,uintb val,int4 sz,const Address &point,uintb &fullEncoding) const
 
 {
   int4 ind = spc->getIndex();
   if (ind < resolvelist.size()) {
     AddressResolver *resolve = resolvelist[ind];
     if (resolve != (AddressResolver *)0)
-      return resolve->resolve(val,sz,point);
+      return resolve->resolve(val,sz,point,fullEncoding);
   }
+  fullEncoding = val;
   val = AddrSpace::addressToByte(val,spc->getWordSize());
   val = spc->wrapOffset(val);
   return Address(spc,val);
@@ -475,9 +551,12 @@ AddrSpace *AddrSpaceManager::getNextSpaceInOrder(AddrSpace *spc) const
   if (spc == (AddrSpace *) ~((uintp)0)) {
     return (AddrSpace *)0;
   }
-  int4 index = spc->getIndex();
-  if (index < baselist.size()-1) {
-    return baselist[index+1];
+  int4 index = spc->getIndex() + 1;
+  while (index < baselist.size()) {
+    AddrSpace *res = baselist[index];
+    if (res != (AddrSpace *)0)
+      return res;
+    index += 1;
   }
   return (AddrSpace *) ~((uintp)0);
 }
@@ -558,12 +637,12 @@ JoinRecord *AddrSpaceManager::findJoin(uintb offset) const
 
 /// Set the number of passes for a specific AddrSpace before deadcode removal is allowed
 /// for that space.
-/// \param spcnum is the index of the AddrSpace to change
+/// \param spc is the AddrSpace to change
 /// \param delaydelta is the number of rounds to the delay should be set to
-void AddrSpaceManager::setDeadcodeDelay(int4 spcnum,int4 delaydelta)
+void AddrSpaceManager::setDeadcodeDelay(AddrSpace *spc,int4 delaydelta)
 
 {
-  baselist[spcnum]->deadcodedelay = delaydelta;
+  spc->deadcodedelay = delaydelta;
 }
 
 /// Mark the named space as truncated from its original size
@@ -620,8 +699,8 @@ Address AddrSpaceManager::constructJoinAddress(const Translate *translate,
       ((lotp != IPTR_SPACEBASE)&&(lotp != IPTR_PROCESSOR)))
     throw LowlevelError("Trying to join in appropriate locations");
   if ((hitp == IPTR_SPACEBASE)||(lotp == IPTR_SPACEBASE)||
-      (hiaddr.getSpace() == getDefaultSpace())||
-      (loaddr.getSpace() == getDefaultSpace()))
+      (hiaddr.getSpace() == getDefaultCodeSpace())||
+      (loaddr.getSpace() == getDefaultCodeSpace()))
     usejoinspace = false;
   if (hiaddr.isContiguous(hisz,loaddr,losz)) { // If we are contiguous
     if (!usejoinspace) { // and in a mappable space, just return the earliest address

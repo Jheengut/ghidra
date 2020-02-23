@@ -15,8 +15,12 @@
  */
 package ghidra.feature.vt.gui.provider.functionassociation;
 
-import static ghidra.feature.vt.api.impl.VTChangeManager.*;
-import static ghidra.feature.vt.gui.provider.functionassociation.FilterSettings.*;
+import static ghidra.feature.vt.api.impl.VTChangeManager.DOCR_VT_ASSOCIATION_STATUS_CHANGED;
+import static ghidra.feature.vt.api.impl.VTChangeManager.DOCR_VT_MATCH_ADDED;
+import static ghidra.feature.vt.api.impl.VTChangeManager.DOCR_VT_MATCH_DELETED;
+import static ghidra.feature.vt.gui.provider.functionassociation.FilterSettings.SHOW_ALL;
+import static ghidra.feature.vt.gui.provider.functionassociation.FilterSettings.SHOW_UNACCEPTED;
+import static ghidra.feature.vt.gui.provider.functionassociation.FilterSettings.SHOW_UNMATCHED;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -28,9 +32,9 @@ import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.JTableHeader;
 
-import docking.ActionContext;
-import docking.WindowPosition;
+import docking.*;
 import docking.action.*;
+import docking.actions.PopupActionProvider;
 import docking.menu.ActionState;
 import docking.menu.MultiStateDockingAction;
 import docking.widgets.EventTrigger;
@@ -52,7 +56,6 @@ import ghidra.framework.model.*;
 import ghidra.framework.options.Options;
 import ghidra.framework.options.SaveState;
 import ghidra.framework.plugintool.ComponentProviderAdapter;
-import ghidra.framework.plugintool.PopupListener;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Function;
 import ghidra.program.model.listing.Program;
@@ -67,7 +70,7 @@ import resources.ResourceManager;
  * Provider for the version tracking function association table. 
  */
 public class VTFunctionAssociationProvider extends ComponentProviderAdapter
-		implements VTControllerListener, PopupListener {
+		implements VTControllerListener, PopupActionProvider {
 
 	private static final String FILTER_SETTINGS_KEY = "FUNCTION_FILTER_SETTINGS";
 	private static final String BASE_TITLE = "Version Tracking Functions";
@@ -125,7 +128,7 @@ public class VTFunctionAssociationProvider extends ComponentProviderAdapter
 		createActions();
 		addGeneralCodeComparisonActions();
 		controller.addListener(this);
-		tool.addPopupListener(this);
+		tool.addPopupActionProvider(this);
 	}
 
 	private void createActions() {
@@ -216,7 +219,7 @@ public class VTFunctionAssociationProvider extends ComponentProviderAdapter
 	}
 
 	@Override
-	public List<DockingActionIf> getPopupActions(ActionContext context) {
+	public List<DockingActionIf> getPopupActions(Tool tool, ActionContext context) {
 		if (context.getComponentProvider() == this) {
 			ListingCodeComparisonPanel dualListingPanel =
 				functionComparisonPanel.getDualListingPanel();
@@ -278,7 +281,7 @@ public class VTFunctionAssociationProvider extends ComponentProviderAdapter
 						getExistingMatch(sourceFunction, destinationFunction));
 				vtListingContext.setCodeComparisonPanel(dualListingPanel);
 				vtListingContext.setContextObject(dualListingPanel);
-				vtListingContext.setSource(source);
+				vtListingContext.setSourceObject(source);
 				return vtListingContext;
 			}
 
@@ -334,7 +337,7 @@ public class VTFunctionAssociationProvider extends ComponentProviderAdapter
 		destinationFunctionsTable.dispose();
 		destinationTableFilterPanel.dispose();
 
-		tool.removePopupListener(this);
+		tool.removePopupActionProvider(this);
 	}
 
 	public void reload() {
@@ -474,9 +477,11 @@ public class VTFunctionAssociationProvider extends ComponentProviderAdapter
 
 		sourceFunctionsModel.addTableModelListener(new TitleUpdateListener());
 
-		sourceFunctionsTable.getColumnModel().getColumn(
-			VTFunctionAssociationTableModel.ADDRESS_COL).setPreferredWidth(
-				VTFunctionAssociationTableModel.ADDRESS_COL_WIDTH);
+		sourceFunctionsTable.getColumnModel()
+				.getColumn(
+					VTFunctionAssociationTableModel.ADDRESS_COL)
+				.setPreferredWidth(
+					VTFunctionAssociationTableModel.ADDRESS_COL_WIDTH);
 
 		sourceTableFilterPanel =
 			new GhidraTableFilterPanel<>(sourceFunctionsTable, sourceFunctionsModel);
@@ -531,9 +536,11 @@ public class VTFunctionAssociationProvider extends ComponentProviderAdapter
 		JTableHeader functionHeader = destinationFunctionsTable.getTableHeader();
 		functionHeader.setUpdateTableInRealTime(true);
 
-		destinationFunctionsTable.getColumnModel().getColumn(
-			VTFunctionAssociationTableModel.ADDRESS_COL).setPreferredWidth(
-				VTFunctionAssociationTableModel.ADDRESS_COL_WIDTH);
+		destinationFunctionsTable.getColumnModel()
+				.getColumn(
+					VTFunctionAssociationTableModel.ADDRESS_COL)
+				.setPreferredWidth(
+					VTFunctionAssociationTableModel.ADDRESS_COL_WIDTH);
 
 		destinationTableFilterPanel =
 			new GhidraTableFilterPanel<>(destinationFunctionsTable, destinationFunctionsModel);

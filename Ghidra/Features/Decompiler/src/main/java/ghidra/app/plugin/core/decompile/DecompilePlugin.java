@@ -15,16 +15,11 @@
  */
 package ghidra.app.plugin.core.decompile;
 
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
 import java.util.*;
 
 import org.jdom.Element;
 
-import docking.ActionContext;
-import docking.action.*;
 import ghidra.app.CorePluginPackage;
-import ghidra.app.decompiler.component.DecompilerHighlightService;
 import ghidra.app.decompiler.component.hover.DecompilerHoverService;
 import ghidra.app.events.*;
 import ghidra.app.plugin.PluginCategoryNames;
@@ -37,9 +32,7 @@ import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.*;
 import ghidra.program.util.ProgramLocation;
 import ghidra.program.util.ProgramSelection;
-import ghidra.util.HelpLocation;
 import ghidra.util.task.SwingUpdateManager;
-import resources.ResourceManager;
 
 /**
  * Plugin for producing a high-level C interpretation of assembly functions.
@@ -55,7 +48,6 @@ import resources.ResourceManager;
 		GoToService.class, NavigationHistoryService.class, ClipboardService.class, 
 		DataTypeManagerService.class /*, ProgramManager.class */
 	},
-	servicesProvided = { DecompilerHighlightService.class },
 	eventsConsumed = { 
 		ProgramActivatedPluginEvent.class, ProgramOpenedPluginEvent.class, 
 		ProgramLocationPluginEvent.class, ProgramSelectionPluginEvent.class, 
@@ -71,8 +63,6 @@ public class DecompilePlugin extends Plugin {
 	private Program currentProgram;
 	private ProgramLocation currentLocation;
 	private ProgramSelection currentSelection;
-
-	private DockingAction decompileAction;
 
 	/**
 	 * Delay location changes to allow location events to settle down.
@@ -91,14 +81,6 @@ public class DecompilePlugin extends Plugin {
 
 		disconnectedProviders = new ArrayList<>();
 		connectedProvider = new PrimaryDecompilerProvider(this);
-
-		createActions();
-
-		registerServices();
-	}
-
-	private void registerServices() {
-		registerServiceProvided(DecompilerHighlightService.class, connectedProvider);
 	}
 
 	@Override
@@ -112,26 +94,6 @@ public class DecompilePlugin extends Plugin {
 		}
 	}
 
-	private void createActions() {
-		decompileAction = new DockingAction("Display Decompiler", getName()) {
-			@Override
-			public void actionPerformed(ActionContext context) {
-				showProvider();
-			}
-		};
-		decompileAction.setToolBarData(
-			new ToolBarData(ResourceManager.loadImage("images/decompileFunction.gif"), "View"));
-		decompileAction.setKeyBindingData(
-			new KeyBindingData(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK));
-
-		decompileAction.setHelpLocation(new HelpLocation(getName(), "Decompiler"));
-		tool.addAction(decompileAction);
-	}
-
-	/**
-	 * Tells the Plugin to write any data-dependent state to the
-	 * output stream.
-	 */
 	@Override
 	public void writeDataState(SaveState saveState) {
 		if (connectedProvider != null) {
@@ -154,11 +116,6 @@ public class DecompilePlugin extends Plugin {
 		}
 	}
 
-	/**
-	 * Read data state; called after readConfigState(). Events generated
-	 * by plugins we depend on should have been already been thrown by the
-	 * time this method is called.
-	 */
 	@Override
 	public void readDataState(SaveState saveState) {
 		ProgramManager programManagerService = tool.getService(ProgramManager.class);
@@ -182,10 +139,6 @@ public class DecompilePlugin extends Plugin {
 				provider.readDataState(providerSaveState);
 			}
 		}
-	}
-
-	private void showProvider() {
-		connectedProvider.setVisible(true);
 	}
 
 	DecompilerProvider createNewDisconnectedProvider() {
